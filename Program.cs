@@ -40,32 +40,19 @@ namespace AwsS3ConsistencyChecker
 
             InitializeTestFileDirectories();
 
-            // Reading thread
-            var readThread = Task.Run(() =>
+            Task[] threads = new Task[]
             {
-                Console.WriteLine("(2) Running read thread");
+                CreateWriterThread(broker),
+                CreateReaderThread(broker)
+            };
 
-                var writeThreadDone = false;
+            Task.WaitAll(threads);
 
-                broker.Subscribe("write-thread-ended", (identifier) =>
-                {
-                    Console.WriteLine("(2) Write thread ended recieved");
-                    writeThreadDone = true;
-                });
+            PrintStats();
+        }
 
-                broker.Subscribe("write-completed", (identifier) =>
-                {
-                    Console.WriteLine("(2) Write completed recieved: " + identifier);
-                    ReadObjectFromS3(identifier).Wait();
-                });
-
-                while (!writeThreadDone)
-                {
-                }
-
-                Console.WriteLine("(2) Ending read thread");
-            });
-
+        private static Task CreateWriterThread(Broker broker)
+        {
             // Writing thread
             var writeThread = Task.Run(() =>
             {
@@ -91,10 +78,36 @@ namespace AwsS3ConsistencyChecker
                 Console.WriteLine("(1) Ending write thread");
                 broker.Notify("write-thread-ended");
             });
+            return writeThread;
+        }
 
-            Task.WaitAll(readThread, writeThread);
+        private static Task CreateReaderThread(Broker broker)
+        {
+            // Reading thread
+            return Task.Run(() =>
+            {
+                Console.WriteLine("(2) Running read thread");
 
-            PrintStats();
+                var writeThreadDone = false;
+
+                broker.Subscribe("write-thread-ended", (identifier) =>
+                {
+                    Console.WriteLine("(2) Write thread ended recieved");
+                    writeThreadDone = true;
+                });
+
+                broker.Subscribe("write-completed", (identifier) =>
+                {
+                    Console.WriteLine("(2) Write completed recieved: " + identifier);
+                    ReadObjectFromS3(identifier).Wait();
+                });
+
+                while (!writeThreadDone)
+                {
+                }
+
+                Console.WriteLine("(2) Ending read thread");
+            });
         }
 
         private static void InitializeTestFileDirectories()

@@ -5,7 +5,7 @@ namespace AwsS3ConsistencyChecker
 {
     public class Broker
     {
-        private Dictionary<string, Action<int>> _subscribers = new Dictionary<string, Action<int>>();
+        private Dictionary<string, List<Action<int>>> _subscribers = new Dictionary<string, List<Action<int>>>();
 
         public Broker()
         {
@@ -15,13 +15,18 @@ namespace AwsS3ConsistencyChecker
         {
             if (_subscribers.ContainsKey(message))
             {
-                _subscribers[message].Invoke(identifier);
+                _subscribers[message].ForEach(action => action.Invoke(identifier));
             }
         }
 
         public void Subscribe(string message, Action<int> action)
         {
-            _subscribers[message] = action;
+            if (!_subscribers.ContainsKey(message))
+            {
+                _subscribers[message] = new List<Action<int>>();
+            }
+
+            _subscribers[message].Add(action);
         }
     }
 }
